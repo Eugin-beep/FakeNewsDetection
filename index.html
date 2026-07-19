@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TruthLens — Fake News Detection Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   DESIGN TOKENS
+   ========================================================================= */
+:root{
+  --bg:#121110;
+  --bg-vignette: radial-gradient(ellipse 120% 80% at 50% -10%, #23201b 0%, #121110 60%);
+  --paper:#F6F0E4;
+  --paper-shadow: 0 30px 60px -20px rgba(0,0,0,0.55), 0 2px 0 rgba(255,255,255,0.03) inset;
+  --paper-alt:#EDE5D3;
+  --ink:#1C1917;
+  --ink-soft:#5C554A;
+  --hairline: rgba(28,25,23,0.14);
+  --hairline-dark: rgba(246,240,228,0.16);
+  --brass:#B8860B;
+  --brass-bright:#D8A537;
+  --burgundy:#7A2E2E;
+  --burgundy-bright:#A23F3F;
+  --teal:#1F4D3F;
+  --teal-bright:#2E7A62;
+  --focus:#3E7CB1;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0; background:var(--bg); background-image:var(--bg-vignette);
+  color:var(--ink); font-family:"Source Serif 4", Georgia, serif; line-height:1.6; min-height:100vh;
+}
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none; opacity:0.5; mix-blend-mode:overlay; z-index:1;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+}
+a{color:var(--focus);}
+::selection{background:var(--brass); color:#1C1917;}
+*:focus-visible{ outline:2px solid var(--focus); outline-offset:3px; }
+
+.stage{ position:relative; z-index:2; max-width:980px; margin:0 auto; padding:48px 20px 100px; }
+
+/* ---------- Masthead ---------- */
+header.masthead{ text-align:center; color:var(--paper); padding-bottom:28px; opacity:0; animation: fadeUp .7s ease forwards; }
+.kicker-row{
+  display:flex; justify-content:space-between; align-items:center;
+  font-family:"IBM Plex Mono", monospace; font-size:10.5px; letter-spacing:0.16em; text-transform:uppercase;
+  color:rgba(246,240,228,0.55); padding-bottom:14px; border-bottom:1px solid var(--hairline-dark);
+}
+h1.nameplate{
+  font-family:"Fraunces", Georgia, serif; font-optical-sizing:auto; font-weight:600; font-style:italic;
+  font-size:clamp(46px, 9vw, 84px); letter-spacing:-0.01em; margin:22px 0 6px;
+  background:linear-gradient(180deg,#FBF6EA 0%, #D9CBA8 100%); -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.tagline{ font-family:"IBM Plex Mono", monospace; font-size:11px; letter-spacing:0.2em; text-transform:uppercase; color:var(--brass-bright); margin:0; }
+@keyframes fadeUp{ from{ opacity:0; transform:translateY(14px);} to{ opacity:1; transform:translateY(0);} }
+
+/* ---------- Language switch ---------- */
+.lang-switch{ display:flex; justify-content:center; gap:6px; margin-top:18px; }
+.lang-btn{
+  font-family:"IBM Plex Mono", monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
+  background:transparent; color:rgba(246,240,228,0.6); border:1px solid var(--hairline-dark);
+  padding:6px 12px; cursor:pointer; transition:all .15s ease;
+}
+.lang-btn.active, .lang-btn:hover{ background:var(--brass-bright); color:#1C1917; border-color:var(--brass-bright); }
+
+/* ---------- Tabs ---------- */
+nav.tabs{
+  display:flex; gap:2px; margin-top:30px; flex-wrap:wrap; justify-content:center;
+}
+.tab-btn{
+  font-family:"IBM Plex Mono", monospace; font-size:11.5px; letter-spacing:0.08em; text-transform:uppercase;
+  background:transparent; color:rgba(246,240,228,0.65); border:1px solid var(--hairline-dark); border-bottom:none;
+  padding:11px 18px; cursor:pointer; transition:all .15s ease; position:relative; top:1px;
+}
+.tab-btn.active{ background:var(--paper); color:var(--ink); border-color:var(--paper); }
+.tab-btn:not(.active):hover{ background:rgba(246,240,228,0.08); color:var(--paper); }
+
+/* ---------- Paper panel ---------- */
+.panel{ background:var(--paper); box-shadow:var(--paper-shadow); padding:44px; position:relative; }
+.panel::after{ content:""; position:absolute; inset:10px; border:1px solid var(--hairline); pointer-events:none; }
+.tab-pane{ display:none; }
+.tab-pane.active{ display:block; }
+
+.reveal{ opacity:0; transform:translateY(18px); transition:opacity .5s ease, transform .5s ease; }
+.reveal.in{ opacity:1; transform:translateY(0); }
+
+.eyebrow{
+  font-family:"IBM Plex Mono", monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase;
+  color:var(--burgundy); margin:0 0 8px; display:flex; align-items:center; gap:8px;
+}
+.eyebrow::before{ content:""; width:6px; height:6px; background:var(--burgundy); border-radius:50%; display:inline-block; }
+.panel h2{ font-family:"Fraunces", serif; font-weight:600; font-size:30px; margin:0 0 8px; letter-spacing:-0.01em; }
+.panel p.sub{ color:var(--ink-soft); margin:0 0 24px; font-size:15.5px; max-width:64ch; }
+
+textarea, input[type="text"], input[type="url"]{
+  width:100%; background:var(--paper); border:1px solid var(--ink); border-left:3px solid var(--burgundy);
+  padding:14px 16px; font-family:"Source Serif 4", Georgia, serif; font-size:16px; line-height:1.7; color:var(--ink);
+  transition:border-color .2s ease, box-shadow .2s ease;
+}
+textarea{ min-height:170px; resize:vertical; }
+textarea:focus, input:focus{ outline:none; border-color:var(--focus); box-shadow:0 0 0 3px rgba(62,124,177,0.15); }
+textarea::placeholder, input::placeholder{ color:#9A9184; }
+
+.field-label{
+  font-family:"IBM Plex Mono", monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.08em;
+  color:var(--ink-soft); display:block; margin:0 0 8px;
+}
+.field-group{ margin-bottom:22px; }
+
+.samples{ display:flex; flex-wrap:wrap; align-items:center; gap:9px; margin:16px 0 26px; }
+.samples span.label{ font-family:"IBM Plex Mono", monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:0.1em; color:var(--ink-soft); margin-right:2px; }
+.chip{
+  font-family:"IBM Plex Mono", monospace; font-size:11.5px; background:transparent; border:1px solid var(--ink-soft);
+  color:var(--ink); padding:7px 12px; cursor:pointer; transition:all .18s ease; letter-spacing:0.02em;
+}
+.chip:hover{ background:var(--ink); color:var(--paper); border-color:var(--ink); transform:translateY(-1px); }
+
+.action-row{ display:flex; align-items:center; gap:20px; flex-wrap:wrap; margin-top:4px; padding-top:22px; border-top:1px solid var(--hairline); }
+
+.btn-primary{
+  position:relative; font-family:"IBM Plex Mono", monospace; font-weight:600; font-size:12.5px; letter-spacing:0.12em;
+  text-transform:uppercase; background:var(--ink); color:var(--paper); border:none; padding:15px 28px; cursor:pointer;
+  transition:background .2s ease, transform .08s ease, box-shadow .2s ease; box-shadow:0 8px 20px -8px rgba(0,0,0,0.4);
+}
+.btn-primary:hover{ background:var(--burgundy); box-shadow:0 10px 24px -8px rgba(122,46,46,0.5); }
+.btn-primary:active{ transform:translateY(1px); }
+.btn-primary:disabled{ opacity:0.45; cursor:not-allowed; }
+.btn-secondary{
+  font-family:"IBM Plex Mono", monospace; font-weight:600; font-size:11.5px; letter-spacing:0.1em; text-transform:uppercase;
+  background:transparent; color:var(--ink); border:1px solid var(--ink); padding:12px 20px; cursor:pointer; transition:all .15s ease;
+}
+.btn-secondary:hover{ background:var(--ink); color:var(--paper); }
+
+.spinner{
+  display:none; width:11px; height:11px; border:2px solid rgba(246,240,228,0.35); border-top-color:var(--paper);
+  border-radius:50%; margin-right:8px; vertical-align:-1px; animation:spin .7s linear infinite;
+}
+.loading .spinner{ display:inline-block; }
+@keyframes spin{ to{ transform:rotate(360deg);} }
+
+.word-count{ font-family:"IBM Plex Mono", monospace; font-size:11.5px; color:var(--ink-soft); }
+
+/* ---------- Results / shared ---------- */
+.results{ margin-top:20px; max-height:0; overflow:hidden; opacity:0; transition:max-height .5s ease, opacity .5s ease .1s; }
+.results.show{ max-height:6000px; opacity:1; }
+
+.verdict-row{ display:grid; grid-template-columns:auto 1fr; gap:36px; align-items:center; padding:30px 0 30px; border-bottom:1px solid var(--hairline); flex-wrap:wrap; }
+.dial-wrap{ position:relative; width:168px; flex-shrink:0; }
+.dial-wrap svg{ width:168px; height:120px; overflow:visible; }
+.needle{ transform-origin:84px 100px; transition:transform 1s cubic-bezier(.16,1,.3,1); }
+.dial-readout{ text-align:center; margin-top:2px; }
+.dial-readout .num{ font-family:"Fraunces", serif; font-weight:600; font-size:28px; line-height:1; }
+.dial-readout .of100{ font-family:"IBM Plex Mono", monospace; font-size:10px; color:var(--ink-soft); letter-spacing:0.08em; text-transform:uppercase; }
+
+.stamp{
+  font-family:"IBM Plex Mono", monospace; font-weight:600; font-size:21px; letter-spacing:0.05em; text-transform:uppercase;
+  border:3px double currentColor; padding:9px 16px; display:inline-block; transform:rotate(-4deg); animation:stampIn .4s cubic-bezier(.2,1.4,.4,1) both;
+}
+@keyframes stampIn{ 0%{ transform:rotate(-4deg) scale(2); opacity:0;} 60%{opacity:1;} 100%{ transform:rotate(-4deg) scale(1); opacity:1;} }
+.stamp.credible{ color:var(--teal); } .stamp.caution{ color:var(--brass); } .stamp.risk{ color:var(--burgundy); }
+.verdict-copy p{ margin:14px 0 0; font-size:14.5px; color:var(--ink-soft); max-width:40ch; }
+
+.confidence-badge{
+  font-family:"IBM Plex Mono", monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:0.08em;
+  display:inline-flex; align-items:center; gap:6px; margin-top:12px; color:var(--ink-soft);
+}
+.confidence-dot{ width:7px; height:7px; border-radius:50%; }
+.confidence-dot.high{ background:var(--teal); } .confidence-dot.medium{ background:var(--brass); } .confidence-dot.low{ background:var(--burgundy); }
+
+@media (prefers-reduced-motion: reduce){ .stamp{animation:none;} .needle{transition:none;} .reveal{transition:none; opacity:1; transform:none;} }
+
+h3.section-title{
+  font-family:"IBM Plex Mono", monospace; font-size:11.5px; text-transform:uppercase; letter-spacing:0.14em;
+  color:var(--ink-soft); margin:36px 0 16px; display:flex; align-items:center; gap:12px;
+}
+h3.section-title::after{ content:""; flex:1; border-bottom:1px solid var(--hairline); }
+
+.note{ display:grid; grid-template-columns:26px 1fr; gap:12px; padding:14px 0; border-bottom:1px dashed var(--hairline); opacity:0; animation:noteIn .45s ease forwards; }
+.note:last-child{ border-bottom:none; }
+@keyframes noteIn{ from{opacity:0; transform:translateX(-6px);} to{opacity:1; transform:translateX(0);} }
+.note .mark{ font-family:"Fraunces", serif; font-weight:600; font-size:20px; color:var(--burgundy); line-height:1; }
+.note .txt strong{ display:block; font-weight:600; font-size:15.5px; margin-bottom:3px; }
+.note .txt span{ color:var(--ink-soft); font-size:13.8px; }
+.note.positive .mark{ color:var(--teal); }
+.note.neutral .mark{ color:var(--brass); }
+
+/* Source credibility card */
+.source-card{
+  border:1px solid var(--hairline); padding:18px 20px; margin-top:10px; display:flex; gap:16px; align-items:flex-start;
+}
+.source-card .badge{
+  font-family:"IBM Plex Mono", monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.06em;
+  padding:4px 9px; border-radius:2px; flex-shrink:0; margin-top:2px; color:#fff;
+}
+.badge.high{ background:var(--teal); } .badge.mixed{ background:var(--brass); } .badge.low{ background:var(--burgundy); } .badge.unknown{ background:var(--ink-soft); }
+.source-card .body strong{ display:block; font-size:15.5px; margin-bottom:4px; }
+.source-card .body span{ font-size:13.8px; color:var(--ink-soft); }
+
+/* Cross-reference card */
+.xref-card{ border-left:3px solid var(--hairline); padding:12px 16px; margin-top:10px; }
+.xref-card.corroborated{ border-left-color:var(--teal); }
+.xref-card.debunked{ border-left-color:var(--burgundy); }
+.xref-card.unverified{ border-left-color:var(--brass); }
+.xref-card strong{ display:block; font-size:14.5px; margin-bottom:3px; }
+.xref-card span{ font-size:13.5px; color:var(--ink-soft); }
+
+/* checklist */
+.progress-line{ display:flex; align-items:center; gap:12px; margin-bottom:18px; font-family:"IBM Plex Mono", monospace; font-size:11px; color:var(--ink-soft); letter-spacing:0.06em; text-transform:uppercase; }
+.progress-track{ flex:1; height:3px; background:var(--hairline); position:relative; }
+.progress-fill{ height:100%; width:0%; background:var(--teal); transition:width .3s ease; }
+ul.checklist{ list-style:none; margin:0; padding:0; }
+ul.checklist li{ display:flex; gap:14px; align-items:flex-start; padding:12px 4px; border-bottom:1px solid var(--hairline); font-size:15px; cursor:pointer; transition:background .15s ease; }
+ul.checklist li:hover{ background:rgba(184,134,11,0.06); }
+ul.checklist li:last-child{ border-bottom:none; }
+ul.checklist input[type="checkbox"]{ margin-top:4px; width:17px; height:17px; accent-color:var(--teal); flex-shrink:0; cursor:pointer; }
+ul.checklist li.checked span{ text-decoration:line-through; color:var(--ink-soft); }
+
+/* Multimedia tab */
+.reverse-links{ display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+.image-preview{ margin-top:20px; max-width:320px; border:1px solid var(--ink); padding:6px; background:#fff; display:none; }
+.image-preview img{ width:100%; display:block; }
+
+/* Learn tab quiz */
+.quiz-card{ border:1px solid var(--hairline); padding:26px; margin-top:6px; }
+.quiz-progress{ font-family:"IBM Plex Mono", monospace; font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px; }
+.quiz-q{ font-family:"Fraunces", serif; font-size:20px; font-weight:500; margin:0 0 18px; }
+.quiz-opts{ display:grid; gap:10px; }
+.quiz-opt{
+  text-align:left; font-family:"Source Serif 4", serif; font-size:15px; background:var(--paper); border:1px solid var(--ink-soft);
+  padding:13px 16px; cursor:pointer; transition:all .15s ease;
+}
+.quiz-opt:hover{ border-color:var(--ink); background:rgba(184,134,11,0.06); }
+.quiz-opt.correct{ border-color:var(--teal); background:rgba(31,77,63,0.1); }
+.quiz-opt.incorrect{ border-color:var(--burgundy); background:rgba(122,46,46,0.08); }
+.quiz-opt:disabled{ cursor:default; }
+.quiz-explain{ margin-top:16px; padding-top:16px; border-top:1px dashed var(--hairline); font-size:14.5px; color:var(--ink-soft); display:none; }
+.quiz-explain.show{ display:block; }
+.quiz-score{ font-family:"IBM Plex Mono", monospace; font-size:12px; color:var(--ink-soft); margin-top:16px; }
+
+/* Community tab */
+.report-form{ display:grid; gap:14px; margin-bottom:30px; }
+.feed-item{ border-bottom:1px solid var(--hairline); padding:18px 0; }
+.feed-item:last-child{ border-bottom:none; }
+.feed-meta{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.feed-tag{ font-family:"IBM Plex Mono", monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; padding:3px 8px; color:#fff; }
+.feed-tag.misleading{ background:var(--burgundy); } .feed-tag.credible{ background:var(--teal); } .feed-tag.unsure{ background:var(--brass); }
+.feed-text{ font-size:15px; margin:0 0 8px; }
+.feed-actions{ display:flex; align-items:center; gap:14px; font-family:"IBM Plex Mono", monospace; font-size:11.5px; color:var(--ink-soft); }
+.upvote-btn{ background:none; border:1px solid var(--ink-soft); padding:4px 10px; cursor:pointer; font-family:inherit; font-size:11.5px; }
+.upvote-btn:hover{ border-color:var(--ink); background:rgba(0,0,0,0.04); }
+.empty-feed{ font-style:italic; color:var(--ink-soft); font-size:14.5px; padding:20px 0; }
+
+/* About tab */
+.roadmap-table{ width:100%; border-collapse:collapse; margin-top:14px; font-size:14px; }
+.roadmap-table th, .roadmap-table td{ text-align:left; padding:10px 12px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.roadmap-table th{ font-family:"IBM Plex Mono", monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-soft); }
+.status-pill{ font-family:"IBM Plex Mono", monospace; font-size:10px; text-transform:uppercase; padding:3px 8px; color:#fff; white-space:nowrap; }
+.status-pill.live{ background:var(--teal); } .status-pill.demo{ background:var(--brass); } .status-pill.roadmap{ background:var(--ink-soft); }
+
+footer.foot{ max-width:980px; margin:36px auto 0; padding:0 20px; color:rgba(246,240,228,0.65); text-align:left; }
+footer.foot .inner{ border-top:1px solid var(--hairline-dark); padding-top:24px; }
+footer.foot h4{ font-family:"IBM Plex Mono", monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.12em; margin:0 0 10px; color:var(--brass-bright); }
+footer.foot p{ font-size:13.5px; line-height:1.7; max-width:70ch; margin:0 0 12px; }
+.disclaimer{ font-family:"IBM Plex Mono", monospace; font-size:11px; border-left:2px solid var(--burgundy-bright); padding-left:12px; color:rgba(246,240,228,0.55); }
+
+@media (max-width:600px){
+  .panel{ padding:24px; } h1.nameplate{ font-size:42px; }
+  .verdict-row{ grid-template-columns:1fr; justify-items:center; text-align:center; }
+  .verdict-copy p{ margin-left:auto; margin-right:auto; }
+  .tab-btn{ padding:9px 12px; font-size:10.5px; }
+}
+</style>
+</head>
+<body>
+
+<div class="stage">
+
+  <header class="masthead">
+    <div class="kicker-row">
+      <span id="editionDate">—</span>
+      <span>Vol. I · No. 01 · Verification Desk</span>
+    </div>
+    <h1 class="nameplate">FAKE NEWS DETECTION</h1>
+    <p class="tagline" id="tagline">Read between the headlines</p>
+    <div class="lang-switch">
+      <button class="lang-btn active" data-lang="en">EN</button>
+      <button class="lang-btn" data-lang="hi">हिंदी</button>
+      <button class="lang-btn" data-lang="ta">தமிழ்</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="analyze" id="tabBtnAnalyze">Analyze</button>
+    <button class="tab-btn" data-tab="media" id="tabBtnMedia">Verify Media</button>
+    <button class="tab-btn" data-tab="learn" id="tabBtnLearn">Learn</button>
+    <button class="tab-btn" data-tab="community" id="tabBtnCommunity">Community</button>
+    <button class="tab-btn" data-tab="about" id="tabBtnAbout">About</button>
+  </nav>
+
+  <div class="panel">
+
+    <!-- ================= ANALYZE TAB ================= -->
+    <section class="tab-pane active" id="pane-analyze">
+      <div class="reveal in">
+        <p class="eyebrow" id="analyzeEyebrow">Submit for review</p>
+        <h2 id="analyzeHeading">Paste a headline or article</h2>
+        <p class="sub" id="analyzeSub">TruthLens checks language patterns, publisher credibility, and independent corroboration — then shows exactly why, so you can judge for yourself.</p>
+
+        <div class="field-group">
+          <textarea id="storyInput" placeholder="Paste a headline, social post, or article text here…"></textarea>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="sourceInput">Source domain (optional)</label>
+          <input type="text" id="sourceInput" placeholder="e.g. thehindu.com — leave blank if unknown">
+        </div>
+
+        <div class="samples">
+          <span class="label" id="samplesLabel">Try a sample:</span>
+          <button class="chip" data-sample="0">Clickbait headline</button>
+          <button class="chip" data-sample="1">Sourced news report</button>
+          <button class="chip" data-sample="2">Urgent share-now post</button>
+          <button class="chip" data-sample="3">Lookalike domain claim</button>
+        </div>
+
+        <div class="action-row">
+          <button class="btn-primary" id="runBtn"><span class="spinner"></span><span class="btn-label" id="runBtnLabel">Run analysis</span></button>
+          <span class="word-count" id="wordCount">0 words</span>
+        </div>
+      </div>
+
+      <section class="results" id="results">
+        <div class="verdict-row">
+          <div class="dial-wrap">
+            <svg viewBox="0 0 168 110">
+              <defs>
+                <linearGradient id="dialZones" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stop-color="#7A2E2E"/>
+                  <stop offset="45%" stop-color="#B8860B"/>
+                  <stop offset="100%" stop-color="#1F4D3F"/>
+                </linearGradient>
+              </defs>
+              <path d="M 10 100 A 74 74 0 0 1 158 100" fill="none" stroke="url(#dialZones)" stroke-width="8" stroke-linecap="round"/>
+              <g id="tickMarks" stroke="#1C1917" stroke-width="1.5" opacity="0.4"></g>
+              <g class="needle" id="needle">
+                <line x1="84" y1="100" x2="84" y2="34" stroke="#1C1917" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="84" cy="100" r="6" fill="#1C1917"/>
+                <circle cx="84" cy="100" r="2.5" fill="#F6F0E4"/>
+              </g>
+            </svg>
+            <div class="dial-readout"><div class="num"><span id="scoreNum">0</span></div><div class="of100">out of 100</div></div>
+          </div>
+          <div class="verdict-copy">
+            <div class="stamp" id="stampEl">Credible</div>
+            <p id="verdictSub">Based on the signals detected below.</p>
+            <div class="confidence-badge"><span class="confidence-dot" id="confDot"></span><span id="confText">Confidence: —</span></div>
+          </div>
+        </div>
+
+        <h3 class="section-title">Editor's notes — language analysis</h3>
+        <div id="notesList"></div>
+
+        <h3 class="section-title">Publisher credibility</h3>
+        <div id="sourceResult"></div>
+
+        <h3 class="section-title">Cross-reference check</h3>
+        <div id="xrefResult"></div>
+
+        <h3 class="section-title">Before you share it</h3>
+        <div class="progress-line">
+          <span id="progressLabel">0 of 5 verified</span>
+          <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        </div>
+        <ul class="checklist" id="checklist">
+          <li><input type="checkbox"><span>Check the outlet's "About" page — is it a real, named organization?</span></li>
+          <li><input type="checkbox"><span>Search for the same story on two other independent outlets.</span></li>
+          <li><input type="checkbox"><span>Check the publish date — is this old news being recirculated?</span></li>
+          <li><input type="checkbox"><span>Look up the author — do they have a track record?</span></li>
+          <li><input type="checkbox"><span>Reverse-image-search any photos before trusting them.</span></li>
+        </ul>
+
+        <div class="action-row" style="border-top:none; padding-top:26px;">
+          <button class="btn-secondary" id="reportMistakeBtn">Flag this result as wrong</button>
+        </div>
+      </section>
+    </section>
+
+    <!-- ================= MEDIA TAB ================= -->
+    <section class="tab-pane" id="pane-media">
+      <p class="eyebrow">Multimedia verification</p>
+      <h2>Check a photo or video</h2>
+      <p class="sub">Recycled and out-of-context images are one of the most common ways misinformation spreads. Paste an image URL to launch a reverse-image search across trusted engines.</p>
+
+      <div class="field-group">
+        <label class="field-label" for="imageUrlInput">Image URL</label>
+        <input type="url" id="imageUrlInput" placeholder="https://example.com/photo.jpg">
+      </div>
+      <div class="image-preview" id="imagePreview"><img id="imagePreviewImg" alt="Preview of submitted image"></div>
+
+      <div class="reverse-links">
+        <button class="btn-secondary" id="lensBtn">Reverse search — Google Lens</button>
+        <button class="btn-secondary" id="tineyeBtn">Reverse search — TinEye</button>
+        <button class="btn-secondary" id="bingBtn">Reverse search — Bing Visual</button>
+      </div>
+
+      <h3 class="section-title">What to look for</h3>
+      <div class="note"><div class="mark">¶</div><div class="txt"><strong>Context mismatch</strong><span>Does the caption's claimed date and location match what the image actually shows? Old disaster or protest photos are frequently relabeled as "breaking."</span></div></div>
+      <div class="note"><div class="mark">¶</div><div class="txt"><strong>Signs of AI generation</strong><span>Check hands, text in the background, and lighting consistency — common giveaways in AI-generated images. No automated check is fully reliable yet, so treat this as a prompt to look closer, not a verdict.</span></div></div>
+      <div class="note"><div class="mark">¶</div><div class="txt"><strong>Video provenance</strong><span>Right-click a video frame and reverse-search a screenshot; check if the same clip appears attached to older, unrelated stories.</span></div></div>
+
+      <h3 class="section-title">Roadmap</h3>
+      <div class="xref-card unverified"><strong>Deepfake / AI-image classifier</strong><span>Planned integration with an image-forensics API to flag likely synthetic media automatically. See the About tab for the full architecture.</span></div>
+    </section>
+
+    <!-- ================= LEARN TAB ================= -->
+    <section class="tab-pane" id="pane-learn">
+      <p class="eyebrow">Media literacy</p>
+      <h2>Spot the signs</h2>
+      <p class="sub">A two-minute check to build the habit of pausing before you share. Your streak resets each time you reopen this page.</p>
+
+      <div class="quiz-card">
+        <div class="quiz-progress" id="quizProgress">Question 1 of 5</div>
+        <div class="quiz-q" id="quizQ">Loading…</div>
+        <div class="quiz-opts" id="quizOpts"></div>
+        <div class="quiz-explain" id="quizExplain"></div>
+      </div>
+      <div class="quiz-score" id="quizScore">Score: 0 / 0</div>
+    </section>
+
+    <!-- ================= COMMUNITY TAB ================= -->
+    <section class="tab-pane" id="pane-community">
+      <p class="eyebrow">Community notes</p>
+      <h2>Crowd-checked claims</h2>
+      <p class="sub">Report a claim you've seen circulating. Entries live for this session only — a production build would store these in a shared database with a moderation queue.</p>
+
+      <div class="report-form">
+        <div class="field-group" style="margin-bottom:0;">
+          <label class="field-label" for="reportText">Claim or headline</label>
+          <textarea id="reportText" style="min-height:90px;" placeholder="Paste the claim you want the community to weigh in on…"></textarea>
+        </div>
+        <div class="field-group" style="margin-bottom:0;">
+          <label class="field-label" for="reportTag">Your assessment</label>
+          <select id="reportTag" style="width:100%; padding:12px 14px; font-family:'Source Serif 4',serif; font-size:15px; border:1px solid var(--ink); background:var(--paper);">
+            <option value="misleading">Looks misleading</option>
+            <option value="credible">Looks credible</option>
+            <option value="unsure">Not sure — needs review</option>
+          </select>
+        </div>
+        <div>
+          <button class="btn-primary" id="submitReportBtn">Submit to community</button>
+        </div>
+      </div>
+
+      <h3 class="section-title">Recent submissions</h3>
+      <div id="feedList"><p class="empty-feed">No submissions yet this session — be the first to report a claim.</p></div>
+    </section>
+
+    <!-- ================= ABOUT TAB ================= -->
+    <section class="tab-pane" id="pane-about">
+      <p class="eyebrow">Problem statement</p>
+      <h2>Fake News Detection</h2>
+      <p class="sub">Misinformation now spreads fastest through emotionally charged headlines, disguised publishers, out-of-context media, and closed messaging apps — often faster than professional fact-checkers can respond. TruthLens combines automated screening with transparent reasoning and human verification habits, rather than a single black-box verdict.</p>
+
+      <h3 class="section-title">Feature roadmap</h3>
+      <table class="roadmap-table">
+        <thead><tr><th>Capability</th><th>Status in this build</th><th>Production integration path</th></tr></thead>
+        <tbody>
+          <tr><td>Linguistic pattern analysis</td><td><span class="status-pill live">Functional</span></td><td>IBM Watson Natural Language Understanding for tone, claim, and entity extraction at scale</td></tr>
+          <tr><td>Publisher credibility check</td><td><span class="status-pill demo">Demo dataset</span></td><td>Live lookup against NewsGuard / Media Bias Fact Check + domain-age and lookalike-domain APIs</td></tr>
+          <tr><td>Cross-referencing &amp; corroboration</td><td><span class="status-pill demo">Demo dataset</span></td><td>Google Fact Check Tools API, PolitiFact, Snopes, Alt News / BOOM, orchestrated via IBM Watson Discovery over a live news index</td></tr>
+          <tr><td>Reverse image search</td><td><span class="status-pill live">Functional links</span></td><td>Add automated forensic scoring via an image-provenance / deepfake-detection API</td></tr>
+          <tr><td>Multilingual detection</td><td><span class="status-pill demo">EN / HI / TA starter sets</span></td><td>Expand phrase banks with linguists; use Watson NLU's multilingual models for production coverage</td></tr>
+          <tr><td>Community notes</td><td><span class="status-pill demo">Session-only demo</span></td><td>Persistent store (e.g. IBM Cloudant) + moderation queue + reviewer roles</td></tr>
+          <tr><td>Media-literacy quiz</td><td><span class="status-pill live">Functional</span></td><td>Expand question bank; add streaks and progress accounts</td></tr>
+          <tr><td>WhatsApp / Telegram "forward to check" bot</td><td><span class="status-pill roadmap">Not built</span></td><td>IBM Watson Assistant + WhatsApp Business API, reusing this same analysis engine as the backend</td></tr>
+          <tr><td>Browser extension (inline feed scanning)</td><td><span class="status-pill roadmap">Not built</span></td><td>Chrome/Edge extension calling the same analysis API used here</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="section-title">Responsible AI guardrails</h3>
+      <div class="note"><div class="mark">¶</div><div class="txt"><strong>Confidence, not certainty</strong><span>Every result shows a confidence level and the specific signals behind it — never a bare true/false verdict.</span></div></div>
+      <div class="note"><div class="mark">¶</div><div class="txt"><strong>Human appeal path</strong><span>The "Flag this result as wrong" button represents a required override channel for any automated flag — no user should be stuck with a verdict they can't contest.</span></div></div>
+      <div class="note"><div class="mark">¶</div><div class="txt"><strong>Bias auditing</strong><span>Because misinformation exists across the political spectrum, flagging logic must be regularly audited for skew and published transparently.</span></div></div>
+      <div class="note"><div class="mark">¶</div><div class="txt"><strong>Assistive, not authoritative</strong><span>TruthLens is designed to support a reader's own judgment and media-literacy skills — not to replace professional fact-checking or be treated as a final ruling.</span></div></div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <div class="inner">
+      <h4>How this build works</h4>
+      <p>This is a client-side prototype. The linguistic analyzer, lookalike-domain checker, and quiz run real logic in your browser. The source-credibility lookup and cross-reference check use a small illustrative dataset bundled in the code (see the <code>DATA</code> section in the script) standing in for the live APIs listed in the About tab's roadmap table.</p>
+      <p class="disclaimer">Educational prototype, not a certified fact-checking service. A low score is a prompt to verify further — not proof something is false. A high score is not a guarantee of accuracy. Always cross-check with a trusted, independent source before sharing.</p>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+/* =========================================================================
+   DATA — illustrative datasets standing in for production APIs.
+   In production: SOURCE_CREDIBILITY_DB -> NewsGuard / MBFC API
+                  FACT_CHECK_DB          -> Google Fact Check Tools API, Alt News/BOOM
+                  LOOKALIKE_BRANDS       -> domain-similarity + WHOIS age service
+   ========================================================================= */
+const SOURCE_CREDIBILITY_DB = {
+  "bbc.com": { rating: "high", name: "BBC News", note: "Established international broadcaster with a public editorial standards code." },
+  "reuters.com": { rating: "high", name: "Reuters", note: "Wire service used as a primary source by most major newsrooms." },
+  "apnews.com": { rating: "high", name: "Associated Press", note: "Wire service with long-standing editorial fact-checking standards." },
+  "thehindu.com": { rating: "high", name: "The Hindu", note: "Established national daily with a named editorial masthead." },
+  "ndtv.com": { rating: "high", name: "NDTV", note: "Established national broadcaster with a named editorial team." },
+  "indianexpress.com": { rating: "high", name: "The Indian Express", note: "Established national daily." },
+  "nytimes.com": { rating: "high", name: "The New York Times", note: "Established international daily with public editorial standards." },
+  "buzzfeed.com": { rating: "mixed", name: "BuzzFeed", note: "Mixes original reporting with entertainment/listicle content — check the specific section." },
+  "example-viral-news.com": { rating: "low", name: "Example Viral News", note: "Illustrative low-transparency outlet: no named authors, no editorial policy, registered recently." },
+  "totally-real-news.net": { rating: "low", name: "Totally Real News (example)", note: "Illustrative low-transparency outlet used for demo purposes." }
+};
+
+const LOOKALIKE_BRANDS = [
+  { brand: "BBC", domain: "bbc.com" },
+  { brand: "CNN", domain: "cnn.com" },
+  { brand: "Reuters", domain: "reuters.com" },
+  { brand: "NDTV", domain: "ndtv.com" },
+  { brand: "The Hindu", domain: "thehindu.com" },
+  { brand: "NYTimes", domain: "nytimes.com" }
+];
+
+// keyword sets -> mock "matched claim" records, standing in for a live fact-check API
+const FACT_CHECK_DB = [
+  { keywords: ["belly fat", "weight loss", "doctors hate", "one trick"], verdict: "debunked", source: "Example Fact-Check Partner", summary: "Similar miracle-cure weight-loss claims have repeatedly been rated false by independent health fact-checkers." },
+  { keywords: ["transit budget", "council", "vote"], verdict: "corroborated", source: "Example Fact-Check Partner", summary: "Local government meeting minutes and multiple outlets reported matching vote details for comparable civic stories." },
+  { keywords: ["rigged", "vote", "election"], verdict: "unverified", source: "Example Fact-Check Partner", summary: "Sweeping fraud claims without named evidence are a recurring pattern flagged in election-misinformation tracking — no independent corroboration found for this specific claim." }
+];
+
+const QUIZ_QUESTIONS = [
+  { q: "A headline reads: \"Doctors HATE this trick — try it TONIGHT!!!\" What's the biggest red flag?", opts: ["It uses exclamation points", "It uses vague, sensational language with no named source", "It mentions doctors", "It's short"], correct: 1, explain: "Vague claims with no named study, doctor, or source — paired with manufactured urgency — are a classic misinformation pattern." },
+  { q: "You see a dramatic photo shared as \"breaking news.\" What's the fastest way to sanity-check it?", opts: ["Assume it's real if it looks dramatic", "Reverse-image-search it", "Check how many likes it has", "Read only the caption"], correct: 1, explain: "A reverse image search often reveals a photo is old, from a different event, or previously debunked." },
+  { q: "An article makes a big claim but names no source, author, or study. What should you do?", opts: ["Share it if it feels true", "Treat it as unverified until you find independent corroboration", "Trust it if it has many comments", "Ignore the lack of sourcing"], correct: 1, explain: "Credible reporting names where information comes from. No attribution is a strong reason to verify before trusting or sharing." },
+  { q: "A message urges: \"SHARE NOW before it's deleted!!!\" Why is that itself a warning sign?", opts: ["Urgency proves it's important news", "Urgency pressure is a common tactic to stop people from pausing to verify", "It means the story is time-sensitive local news", "It has no meaning either way"], correct: 1, explain: "Manufactured urgency is designed to short-circuit your instinct to check before sharing — a deliberate manipulation tactic." },
+  { q: "A claim is corroborated by two independent, reputable outlets with named sources. What does that tell you?", opts: ["It's definitely 100% true forever", "It's more trustworthy than an uncorroborated single-source claim, though still worth staying alert to updates", "Corroboration doesn't matter", "You should stop checking anything ever again"], correct: 1, explain: "Independent corroboration meaningfully raises confidence — but good media literacy still stays open to corrections as stories develop." }
+];
+
+/* =========================================================================
+   I18N — starter multilingual support (EN / HI / TA)
+   ========================================================================= */
+const UI_STRINGS = {
+  en: { tagline:"Read between the headlines", tabAnalyze:"Analyze", tabMedia:"Verify Media", tabLearn:"Learn", tabCommunity:"Community", tabAbout:"About",
+        eyebrow:"Submit for review", heading:"Paste a headline or article",
+        sub:"TruthLens checks language patterns, publisher credibility, and independent corroboration — then shows exactly why, so you can judge for yourself.",
+        samplesLabel:"Try a sample:", runBtn:"Run analysis" },
+  hi: { tagline:"सुर्खियों के बीच सच पढ़ें", tabAnalyze:"विश्लेषण करें", tabMedia:"मीडिया सत्यापित करें", tabLearn:"सीखें", tabCommunity:"समुदाय", tabAbout:"जानकारी",
+        eyebrow:"समीक्षा हेतु सबमिट करें", heading:"कोई हेडलाइन या लेख पेस्ट करें",
+        sub:"TruthLens भाषा के पैटर्न, प्रकाशक की विश्वसनीयता और स्वतंत्र पुष्टि की जांच करता है — और बताता है क्यों, ताकि आप खुद निर्णय ले सकें।",
+        samplesLabel:"एक उदाहरण आज़माएँ:", runBtn:"विश्लेषण चलाएँ" },
+  ta: { tagline:"தலைப்புச் செய்திகளுக்கு இடையே உண்மையைப் படியுங்கள்", tabAnalyze:"பகுப்பாய்வு", tabMedia:"ஊடகத்தை சரிபார்", tabLearn:"கற்றுக்கொள்", tabCommunity:"சமூகம்", tabAbout:"பற்றி",
+        eyebrow:"மதிப்பாய்வுக்கு சமர்ப்பிக்கவும்", heading:"தலைப்பு அல்லது கட்டுரையை ஒட்டவும்",
+        sub:"TruthLens மொழி முறைகள், வெளியீட்டாளர் நம்பகத்தன்மை மற்றும் சுயாதீன உறுதிப்படுத்தலை சரிபார்க்கிறது — ஏன் என்பதைக் காட்டி, நீங்களே முடிவு செய்ய உதவுகிறது.",
+        samplesLabel:"ஒரு உதாரணத்தை முயற்சிக்கவும்:", runBtn:"பகுப்பாய்வை இயக்கு" }
+};
+
+// language-specific phrase banks feeding the linguistic analyzer
+const PHRASE_BANKS = {
+  en: {
+    clickbait: ["you won't believe", "shocking", "doctors hate", "this one trick", "what happens next", "won't believe what", "goes viral", "melts fat", "one weird trick", "before it's deleted", "before it gets deleted", "they don't want you to know", "mainstream media won't tell you"],
+    urgency: ["share now", "share before", "act now", "share this", "before it's too late", "breaking!!!", "urgent", "must see", "everyone needs to see this"],
+    absolute: ["100% proof", "always true", "never wrong", "everyone knows", "undeniable", "proves conclusively", "no doubt whatsoever", "guaranteed"],
+    attribution: ["according to", "said", "reported by", "confirmed", "study found", "researchers", "spokesperson", "data from", "sources say", "cited", "statement", "press release", "official"]
+  },
+  hi: {
+    clickbait: ["आप यकीन नहीं करेंगे", "चौंकाने वाला", "डॉक्टर हैरान", "एक अनोखी तरकीब", "आगे क्या हुआ"],
+    urgency: ["अभी शेयर करें", "डिलीट होने से पहले शेयर करें", "तुरंत कार्रवाई करें", "जरूरी सूचना"],
+    absolute: ["100% सच", "पूरी तरह सच", "हर कोई जानता है", "कोई शक नहीं"],
+    attribution: ["के अनुसार", "ने कहा", "पुष्टि की", "अध्ययन में पाया गया", "सूत्रों के अनुसार", "बयान"]
+  },
+  ta: {
+    clickbait: ["நீங்கள் நம்பமாட்டீர்கள்", "அதிர்ச்சி தகவல்", "மருத்துவர்கள் வெறுக்கும்", "ஒரே ஒரு தந்திரம்"],
+    urgency: ["இப்போதே பகிரவும்", "நீக்கப்படும் முன் பகிரவும்", "உடனடியாக செயல்படுங்கள்"],
+    absolute: ["100% உண்மை", "எல்லோருக்கும் தெரியும்", "சந்தேகமே இல்லை"],
+    attribution: ["படி", "என்று கூறினார்", "உறுதிப்படுத்தினார்", "ஆய்வில் கண்டறியப்பட்டது", "ஆதாரங்களின்படி"]
+  }
+};
+
+let currentLang = "en";
+
+/* =========================================================================
+   INIT — dates, dial ticks, quiz, tabs
+   ========================================================================= */
+document.getElementById('editionDate').textContent = new Date().toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' });
+
+(function drawTicks(){
+  const cx = 84, cy = 100, rOuter = 74, rInner = 66;
+  const g = document.getElementById('tickMarks');
+  for (let i = 0; i <= 4; i++){
+    const angle = Math.PI - (i / 4) * Math.PI;
+    const x1 = cx + rInner * Math.cos(angle), y1 = cy - rInner * Math.sin(angle);
+    const x2 = cx + rOuter * Math.cos(angle), y2 = cy - rOuter * Math.sin(angle);
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1); line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+    g.appendChild(line);
+  }
+})();
+function setNeedle(score){ document.getElementById('needle').style.transform = `rotate(${-90 + (score/100)*180}deg)`; }
+setNeedle(0);
+
+/* ---------------- Tabs ---------------- */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('pane-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ---------------- Language switch ---------------- */
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentLang = btn.dataset.lang;
+    const s = UI_STRINGS[currentLang];
+    document.getElementById('tagline').textContent = s.tagline;
+    document.getElementById('tabBtnAnalyze').textContent = s.tabAnalyze;
+    document.getElementById('tabBtnMedia').textContent = s.tabMedia;
+    document.getElementById('tabBtnLearn').textContent = s.tabLearn;
+    document.getElementById('tabBtnCommunity').textContent = s.tabCommunity;
+    document.getElementById('tabBtnAbout').textContent = s.tabAbout;
+    document.getElementById('analyzeEyebrow').textContent = s.eyebrow;
+    document.getElementById('analyzeHeading').textContent = s.heading;
+    document.getElementById('analyzeSub').textContent = s.sub;
+    document.getElementById('samplesLabel').textContent = s.samplesLabel;
+    document.getElementById('runBtnLabel').textContent = s.runBtn;
+  });
+});
+
+/* =========================================================================
+   ANALYZE TAB LOGIC
+   ========================================================================= */
+const input = document.getElementById('storyInput');
+const sourceInput = document.getElementById('sourceInput');
+const wordCount = document.getElementById('wordCount');
+const runBtn = document.getElementById('runBtn');
+const results = document.getElementById('results');
+
+const samples = [
+  { text: "SHOCKING: Doctors HATE her — this ONE weird trick melts belly fat overnight! You won't BELIEVE what happens next. Share before it gets DELETED!!!", source: "totally-real-news.net" },
+  { text: "City council approved the new transit budget on Tuesday by a 6-3 vote, according to meeting minutes released by the clerk's office. Council member Dana Reyes said the funding would cover route expansions starting next spring.", source: "thehindu.com" },
+  { text: "BREAKING!!! They don't want you to see this — SHARE NOW before it's taken down! 100% PROOF the vote was rigged, everyone knows it's true!!!", source: "example-viral-news.com" },
+  { text: "Exclusive report confirms the new policy takes effect next month, officials said in a statement.", source: "bbc-news24.com" }
+];
+
+document.querySelectorAll('#pane-analyze .chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const s = samples[btn.dataset.sample];
+    input.value = s.text;
+    sourceInput.value = s.source;
+    updateCount();
+    input.focus();
+  });
+});
+function updateCount(){
+  const words = input.value.trim().split(/\s+/).filter(Boolean);
+  wordCount.textContent = (input.value.trim() ? words.length : 0) + ' words';
+}
+input.addEventListener('input', updateCount);
+
+// Levenshtein distance for lookalike-domain detection
+function levenshtein(a, b){
+  const m = a.length, n = b.length;
+  const dp = Array.from({length:m+1}, () => new Array(n+1).fill(0));
+  for (let i=0;i<=m;i++) dp[i][0]=i;
+  for (let j=0;j<=n;j++) dp[0][j]=j;
+  for (let i=1;i<=m;i++){
+    for (let j=1;j<=n;j++){
+      dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+    }
+  }
+  return dp[m][n];
+}
+
+function checkSourceCredibility(domainRaw){
+  if (!domainRaw || !domainRaw.trim()) return null;
+  const domain = domainRaw.trim().toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').split('/')[0];
+  if (SOURCE_CREDIBILITY_DB[domain]){
+    return { status: SOURCE_CREDIBILITY_DB[domain].rating, domain, name: SOURCE_CREDIBILITY_DB[domain].name, note: SOURCE_CREDIBILITY_DB[domain].note, lookalike: false };
+  }
+  // lookalike-domain heuristic: close edit-distance to a known brand's real domain, but not an exact match
+  for (const b of LOOKALIKE_BRANDS){
+    const dist = levenshtein(domain, b.domain);
+    if (dist > 0 && dist <= 3 && domain !== b.domain){
+      return { status: "low", domain, name: domain, note: `This domain closely resembles ${b.brand}'s real domain (${b.domain}) but is not an exact match — a common impersonation tactic.`, lookalike: true, brand: b.brand };
+    }
+  }
+  return { status: "unknown", domain, name: domain, note: "Not found in our credibility dataset. In production this would trigger a live lookup against a service like NewsGuard.", lookalike: false };
+}
+
+function crossReference(text){
+  const lower = text.toLowerCase();
+  const matches = FACT_CHECK_DB.filter(entry => entry.keywords.some(k => lower.includes(k)));
+  return matches;
+}
+
+function runLinguisticAnalysis(text, lang){
+  const bank = PHRASE_BANKS[lang] || PHRASE_BANKS.en;
+  const lower = text.toLowerCase();
+  const words = text.split(/\s+/).filter(Boolean);
+  const notes = [];
+  let score = 100;
+
+  if (words.length < 12){
+    notes.push({ type:'flag', title:'Very short submission', detail:'There isn\u2019t much text to analyze — short snippets are easy to take out of context.' });
+    score -= 10;
+  }
+  let hits;
+  hits = bank.clickbait.filter(p => lower.includes(p)).length;
+  if (hits > 0){ notes.push({ type:'flag', title:'Clickbait-style phrasing', detail:`Found ${hits} phrase${hits>1?'s':''} commonly used to bait clicks rather than inform.` }); score -= Math.min(25, hits*10); }
+
+  hits = bank.urgency.filter(p => lower.includes(p)).length;
+  if (hits > 0){ notes.push({ type:'flag', title:'Urgency pressure', detail:'Language pushing immediate sharing is a classic manipulation tactic that discourages verification.' }); score -= Math.min(20, hits*10); }
+
+  hits = bank.absolute.filter(p => lower.includes(p)).length;
+  if (hits > 0){ notes.push({ type:'flag', title:'Sweeping, unqualified claims', detail:'Absolute-certainty phrasing is rare in real reporting on complex topics.' }); score -= Math.min(20, hits*10); }
+
+  const exclaimCount = (text.match(/!/g) || []).length;
+  if (exclaimCount >= 3){ notes.push({ type:'flag', title:'Excessive exclamation points', detail:`${exclaimCount} exclamation marks detected — often used to manufacture excitement or alarm.` }); score -= 10; }
+
+  const capsWords = words.filter(w => w.length > 3 && w === w.toUpperCase() && /[A-Z]/.test(w));
+  if (capsWords.length >= 3){ notes.push({ type:'flag', title:'Heavy use of ALL CAPS', detail:`${capsWords.length} all-caps words found, often used to simulate shouting.` }); score -= 10; }
+
+  hits = bank.attribution.filter(p => lower.includes(p)).length;
+  if (hits === 0 && words.length >= 12){
+    notes.push({ type:'flag', title:'No attributed source found', detail:'No named source, spokesperson, or study was detected. Credible reporting usually names where information comes from.' });
+    score -= 15;
+  } else if (hits > 0){
+    notes.push({ type:'positive', title:'Includes source attribution', detail:'The text references a named source, statement, or data — a positive sign, though the source itself should still be checked.' });
+    score += 5;
+  }
+  return { score, notes };
+}
+
+runBtn.addEventListener('click', () => {
+  if (!input.value.trim()){ input.focus(); return; }
+  runBtn.classList.add('loading'); runBtn.disabled = true;
+  setTimeout(() => {
+    const ling = runLinguisticAnalysis(input.value, currentLang);
+    const srcResult = checkSourceCredibility(sourceInput.value);
+    const xrefMatches = crossReference(input.value);
+
+    let score = ling.score;
+    if (srcResult){
+      if (srcResult.status === 'high') score += 10;
+      else if (srcResult.status === 'low') score -= 25;
+      else if (srcResult.status === 'mixed') score -= 5;
+    }
+    xrefMatches.forEach(m => {
+      if (m.verdict === 'corroborated') score += 8;
+      if (m.verdict === 'debunked') score -= 25;
+    });
+    score = Math.max(0, Math.min(100, Math.round(score)));
+
+    // confidence: how much evidence we actually had
+    let evidencePoints = 1; // linguistic always available
+    if (srcResult && srcResult.status !== 'unknown') evidencePoints++;
+    if (xrefMatches.length > 0) evidencePoints++;
+    const confidence = evidencePoints >= 3 ? 'high' : evidencePoints === 2 ? 'medium' : 'low';
+
+    let verdict, verdictClass, sub;
+    if (score >= 70){ verdict='Credible signals'; verdictClass='credible'; sub='The signals here are broadly consistent with standard reporting. Still worth confirming independently.'; }
+    else if (score >= 40){ verdict='Use caution'; verdictClass='caution'; sub='A mix of signals — some elements worth a second look before you share this further.'; }
+    else { verdict='High risk'; verdictClass='risk'; sub='Several strong warning signs detected. Verify independently before trusting or sharing.'; }
+
+    if (ling.notes.filter(n=>n.type==='flag').length===0 && !xrefMatches.some(m=>m.verdict==='debunked')){
+      ling.notes.push({ type:'positive', title:'No major language red flags detected', detail:'The text checked out against our warning-sign list. Still worth confirming the source independently.' });
+    }
+
+    renderResults({ score, verdict, verdictClass, sub, confidence, notes: ling.notes, srcResult, xrefMatches });
+    runBtn.classList.remove('loading'); runBtn.disabled = false;
+  }, 500);
+});
+
+function renderResults(r){
+  results.classList.add('show');
+  const stampEl = document.getElementById('stampEl');
+  stampEl.textContent = r.verdict;
+  stampEl.className = 'stamp ' + r.verdictClass;
+  void stampEl.offsetWidth;
+  document.getElementById('verdictSub').textContent = r.sub;
+  document.getElementById('scoreNum').textContent = r.score;
+  setNeedle(r.score);
+
+  const confDot = document.getElementById('confDot');
+  confDot.className = 'confidence-dot ' + r.confidence;
+  document.getElementById('confText').textContent = 'Confidence: ' + r.confidence.charAt(0).toUpperCase() + r.confidence.slice(1) + ' (based on how many independent signals were available)';
+
+  const notesList = document.getElementById('notesList');
+  notesList.innerHTML = '';
+  r.notes.forEach((n,i) => {
+    const div = document.createElement('div');
+    div.className = 'note' + (n.type==='positive' ? ' positive' : '');
+    div.style.animationDelay = (i*0.06)+'s';
+    div.innerHTML = `<div class="mark">${n.type==='positive'?'\u2713':'\u00b6'}</div><div class="txt"><strong>${n.title}</strong><span>${n.detail}</span></div>`;
+    notesList.appendChild(div);
+  });
+
+  const sourceResult = document.getElementById('sourceResult');
+  sourceResult.innerHTML = '';
+  if (!r.srcResult){
+    sourceResult.innerHTML = '<p class="notes-empty" style="font-style:italic;color:var(--ink-soft);font-size:14.5px;">No source domain was entered — add one above for a publisher credibility check.</p>';
+  } else {
+    const badgeClass = r.srcResult.status;
+    const card = document.createElement('div');
+    card.className = 'source-card';
+    card.innerHTML = `<span class="badge ${badgeClass}">${badgeClass}</span><div class="body"><strong>${r.srcResult.name}${r.srcResult.lookalike ? ' — possible impersonation' : ''}</strong><span>${r.srcResult.note}</span></div>`;
+    sourceResult.appendChild(card);
+  }
+
+  const xrefResult = document.getElementById('xrefResult');
+  xrefResult.innerHTML = '';
+  if (r.xrefMatches.length === 0){
+    xrefResult.innerHTML = '<p style="font-style:italic;color:var(--ink-soft);font-size:14.5px;">No matching entries found in the demo fact-check dataset. In production, this checks live fact-checking databases and independent outlet coverage.</p>';
+  } else {
+    r.xrefMatches.forEach(m => {
+      const card = document.createElement('div');
+      card.className = 'xref-card ' + m.verdict;
+      card.innerHTML = `<strong>${m.verdict.charAt(0).toUpperCase()+m.verdict.slice(1)} — ${m.source}</strong><span>${m.summary}</span>`;
+      xrefResult.appendChild(card);
+    });
+  }
+
+  setTimeout(() => results.scrollIntoView({ behavior:'smooth', block:'start' }), 150);
+}
+
+document.getElementById('reportMistakeBtn').addEventListener('click', () => {
+  const text = input.value.trim();
+  if (!text) return;
+  addCommunityReport(text.slice(0,220), 'unsure');
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tabBtnCommunity').classList.add('active');
+  document.getElementById('pane-community').classList.add('active');
+});
+
+document.querySelectorAll('#checklist li').forEach(li => {
+  const cb = li.querySelector('input[type="checkbox"]');
+  li.addEventListener('click', (e) => {
+    if (e.target !== cb) cb.checked = !cb.checked;
+    li.classList.toggle('checked', cb.checked);
+    updateChecklistProgress();
+  });
+});
+function updateChecklistProgress(){
+  const boxes = document.querySelectorAll('#checklist input[type="checkbox"]');
+  const checked = Array.from(boxes).filter(b=>b.checked).length;
+  document.getElementById('progressLabel').textContent = `${checked} of ${boxes.length} verified`;
+  const fill = document.getElementById('progressFill');
+  fill.style.width = (checked/boxes.length*100)+'%';
+  fill.style.background = checked===boxes.length ? 'var(--teal)' : checked===0 ? 'var(--hairline)' : 'var(--brass)';
+}
+updateChecklistProgress();
+updateCount();
+
+/* =========================================================================
+   MEDIA TAB LOGIC — reverse image search links (fully functional, no API key)
+   ========================================================================= */
+const imageUrlInput = document.getElementById('imageUrlInput');
+const imagePreview = document.getElementById('imagePreview');
+const imagePreviewImg = document.getElementById('imagePreviewImg');
+
+imageUrlInput.addEventListener('input', () => {
+  const url = imageUrlInput.value.trim();
+  if (url){ imagePreviewImg.src = url; imagePreview.style.display = 'block'; }
+  else { imagePreview.style.display = 'none'; }
+});
+imagePreviewImg.addEventListener('error', () => { imagePreview.style.display = 'none'; });
+
+document.getElementById('lensBtn').addEventListener('click', () => {
+  const url = imageUrlInput.value.trim();
+  if (!url) return imageUrlInput.focus();
+  window.open('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(url), '_blank');
+});
+document.getElementById('tineyeBtn').addEventListener('click', () => {
+  const url = imageUrlInput.value.trim();
+  if (!url) return imageUrlInput.focus();
+  window.open('https://tineye.com/search?url=' + encodeURIComponent(url), '_blank');
+});
+document.getElementById('bingBtn').addEventListener('click', () => {
+  const url = imageUrlInput.value.trim();
+  if (!url) return imageUrlInput.focus();
+  window.open('https://www.bing.com/images/search?q=imgurl:' + encodeURIComponent(url) + '&view=detailv2&iss=sbi', '_blank');
+});
+
+/* =========================================================================
+   LEARN TAB — quiz engine
+   ========================================================================= */
+let quizIndex = 0, quizScore = 0, quizAnswered = 0;
+function renderQuiz(){
+  const q = QUIZ_QUESTIONS[quizIndex];
+  document.getElementById('quizProgress').textContent = `Question ${quizIndex+1} of ${QUIZ_QUESTIONS.length}`;
+  document.getElementById('quizQ').textContent = q.q;
+  const opts = document.getElementById('quizOpts');
+  opts.innerHTML = '';
+  const explain = document.getElementById('quizExplain');
+  explain.classList.remove('show');
+  q.opts.forEach((opt, i) => {
+    const b = document.createElement('button');
+    b.className = 'quiz-opt';
+    b.textContent = opt;
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.quiz-opt').forEach(o => o.disabled = true);
+      if (i === q.correct){ b.classList.add('correct'); quizScore++; }
+      else { b.classList.add('incorrect'); document.querySelectorAll('.quiz-opt')[q.correct].classList.add('correct'); }
+      quizAnswered++;
+      explain.textContent = q.explain;
+      explain.classList.add('show');
+      document.getElementById('quizScore').textContent = `Score: ${quizScore} / ${quizAnswered}` + (quizIndex < QUIZ_QUESTIONS.length-1 ? ' — click any option area to continue' : ' — quiz complete!');
+      setTimeout(() => {
+        if (quizIndex < QUIZ_QUESTIONS.length - 1){ quizIndex++; renderQuiz(); }
+      }, 1800);
+    });
+    opts.appendChild(b);
+  });
+}
+renderQuiz();
+
+/* =========================================================================
+   COMMUNITY TAB — session-based reports feed
+   ========================================================================= */
+const communityReports = [];
+function addCommunityReport(text, tag){
+  communityReports.unshift({ text, tag, votes: 0, id: Date.now() });
+  renderFeed();
+}
+function renderFeed(){
+  const feedList = document.getElementById('feedList');
+  if (communityReports.length === 0){
+    feedList.innerHTML = '<p class="empty-feed">No submissions yet this session — be the first to report a claim.</p>';
+    return;
+  }
+  feedList.innerHTML = '';
+  communityReports.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'feed-item';
+    div.innerHTML = `
+      <div class="feed-meta"><span class="feed-tag ${r.tag}">${r.tag}</span></div>
+      <p class="feed-text">${escapeHtml(r.text)}</p>
+      <div class="feed-actions"><button class="upvote-btn" data-id="${r.id}">▲ Agree (${r.votes})</button></div>
+    `;
+    feedList.appendChild(div);
+  });
+  feedList.querySelectorAll('.upvote-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rec = communityReports.find(r => r.id == btn.dataset.id);
+      if (rec){ rec.votes++; renderFeed(); }
+    });
+  });
+}
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+document.getElementById('submitReportBtn').addEventListener('click', () => {
+  const text = document.getElementById('reportText').value.trim();
+  if (!text) return;
+  const tag = document.getElementById('reportTag').value;
+  addCommunityReport(text, tag);
+  document.getElementById('reportText').value = '';
+});
+</script>
+
+</body>
+</html>
